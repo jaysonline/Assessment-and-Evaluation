@@ -1,0 +1,180 @@
+---
+title: "MAE4120 : Assignment 2"
+author: "Jayeong Song"
+date: "2/19/2020"
+output:
+  html_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Task a.
+## -investigate the model fit for unidimensional 2-PL models(all data combined, boys, girls)
+
+```{r task a initial setup, echo=F, include = F}
+#data load
+data <- load("C:/Users/user/Desktop/MAE4120(IRT)/assignment/Assignment 2/IRTA2VT20.RData")
+class(Jayeong) #sample 1402, first 704:boy, 608;girl
+colnames(Jayeong)
+colnames(Jayeong) <-  c("item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12","item13","item14","item15","item16","item17","item18","item19","item20") #naming colnames
+library(mirt) #library load
+
+###a###
+#estimating 2pl
+all2plmodel <- mirt(data.frame(Jayeong), 1, c('2PL'), SE = TRUE)
+boy2plmodel<- mirt(data.frame(Jayeong[1:704,]), 1, c('2PL'), SE = TRUE)
+girl2plmodel <- mirt(data.frame(Jayeong[705:1402,]), 1, c('2PL'), SE = TRUE)
+```
+
+```{r modelfit, echo=T}
+#model fit
+M2(all2plmodel) 
+M2(boy2plmodel) 
+M2(girl2plmodel) 
+```
+## -comment on the results.
+We obtained results from the M2-test. p-values associated with m2 stastics for the three 2-PL models(all,boys,girls) were larger than .05(=significance level), so we cannnot reject null hypothesis, meaning that non significant difference between observed data and estimated. The other model fit indices for these three 2pl models were also acceptable overall fit. However, The model fit when all data was combined based on RMSEA was most acceptable of all 2-PL models 
+[all :RMSEA = 0.005(<.05), SRMSR=0.01(<.05) TLI=0.99(close to 1), CFI=0.99(close to 1)]
+[boys :RMSEA = 0.014(<.05), SRMSR=0.02(<.05), TLI=0.99(close to 1), CFI=0.99(close to 1)]
+[girls :RMSEA = 0.002(<.05), SRMSR=0.02(<.05), TLI=0.99(close to 1), CFI=0.99(close to 1)] 
+
+
+
+
+# Task b.
+## -report the sample mean of the ability estimates for boys and girls
+```{r taskb print, echo=TRUE}
+head(fscores(all2plmodel)) #compute the EAP ability estimates for all individuals, printed only 6 estimates as it is too many
+summary(fscores(all2plmodel)[1:704]) #summary for boys #mean = -0.1535
+summary(fscores(all2plmodel)[705:1402]) #summary for girls #mean = 0.1547
+```
+## -comment on the results
+The estimated result shows that the sample mean of the ability estimates in english vocabulary tests are higher for girls(0.1547) than boys(-0.1535) for 12 years old.
+
+
+
+
+# Task c. investigate the item bias, and describe the procedure used
+```{r taskc add initial setup, echo=T}
+data <- data.frame(Jayeong) #whole dat set
+gender <- rep(c("boy","girl"),c(704,698)) #the character vector consist of boy and girl
+mgmodel <- multipleGroup((data), model = 1, group = rep(c("boy","girl"),c(704,698)), invariance = c("free_means", "free_var", colnames(data)), SE = TRUE) #the constrained multiple group model
+coef(mgmodel)$boy$GroupPars
+```
+To identify items with DIF, First, I estimated constrained multiple group model 'mgmodel' with all data set by specifying that the mean and variance of the non-reference group should be estimated, and the item parameters(item discrimination, item difficulty) were constrained to be equal across the groups (boys and girls) using invaraicne argument. using 'coef(mgmodel)', we also can recognize that boy group is the reference group with N(0,1) distribution.
+
+```{r dif detection, echo=TRUE}
+DIF(mgmodel, which.par = c("a1", "d"), scheme = "drop_sequential", items2test = 11:20, seq_stat = "BIC") # item12, item16 mgmodel
+
+```
+Second, the function DIF() in mirt was used and al(slope parameter) d(intercept parameter) was used to test for DIF. As 'mgmodel' was constrained multiple group model in preveious procedure, 'drop_sequential' was used for the scheme argument. according to the instruction, items 1 to 10 do not exhibit any item bias with repect to the gender, so i only tested item11 to item20. As a final result, 2 items (item 12, item 16) exhibited DIF
+
+
+
+
+
+# Task d.
+```{r task d initial setup, echo=F, include = F}
+data2plmgdif <- multipleGroup(data, 1, group = gender, invariance = c("free_means", "free_var", colnames(data)[-c(12,16)]), SE = TRUE) #differentiate 2 items that showed df
+
+coef(data2plmgdif)
+coef(data2plmgdif)$boy$item12
+coef(data2plmgdif)$girl$item12
+coef(data2plmgdif)$boy$item16
+coef(data2plmgdif)$girl$item16
+
+extract.group(data2plmgdif, 1) #boygroup(?reference group guess, not sure)
+extract.group(data2plmgdif, 2) #which group
+
+#scale check
+i12b <- iteminfo(extract.item(extract.group(data2plmgdif, 1), 12), seq(-4, 4, by = 0.01))
+i12g <- iteminfo(extract.item(extract.group(data2plmgdif, 2), 12), seq(-4, 4, by = 0.01))
+ymax12 <- max(c(i12b,i12g)) #max 0.95
+
+i16b <- iteminfo(extract.item(extract.group(data2plmgdif, 1), 16), seq(-4, 4, by = 0.01))
+i16g <- iteminfo(extract.item(extract.group(data2plmgdif, 2), 16), seq(-4, 4, by = 0.01))
+ymax16 <- max(c(i16b,i16g)) #max 1.90
+```
+
+## -item 12, plot item characteristic curves, item information functions
+
+```{r item12, echo=FALSE, out.width = '55%'}
+#ICC item 12
+plot(seq(-4, 4, by = 0.01), probtrace(extract.item(extract.group(data2plmgdif, 1), 12), seq(-4, 4, by = 0.01))[,2], type = "l", main = "Item Characterstic Curve (Item 12)",xlab = "Ability", ylab = "Probability", ylim = c(0, 1), lwd = 2.5, col = "red")
+par(new = TRUE)
+plot(seq(-4, 4, by = 0.01), probtrace(extract.item(extract.group(data2plmgdif, 2), 12), seq(-4, 4, by = 0.01))[,2], type = "l", main = "Item Characterstic Curve (Item 12)",xlab = "Ability", ylab = "Probability", ylim = c(0, 1), lwd = 2.5, col = "blue")
+legend('topleft', c("boy","girl"),col=c("red","blue"),lwd=c(2.5,2.5))
+
+#Information item 12
+plot(seq(-4, 4, by = 0.01), iteminfo(extract.item(extract.group(data2plmgdif, 1), 12), seq(-4, 4, by = 0.01)), type = "l", main = "Item information (Item 12)",xlab = "ability", ylab = "information", ylim = c(0, round(ymax12)), lwd = 2.5, col = "red")
+par(new = TRUE)
+plot(seq(-4, 4, by = 0.01), iteminfo(extract.item(extract.group(data2plmgdif, 2), 12), seq(-4, 4, by = 0.01)), type = "l", main = "Item information (Item 12)",xlab = "ability", ylab = "information", ylim = c(0, round(ymax12)), lwd = 2.5, col = "blue")
+legend('topleft', c("boy","girl"),col=c("red","blue"),lwd=c(2.5,2.5))
+
+```
+
+```{r exact number item 12, echo=T}
+#coefficient item 12
+coef(data2plmgdif)$boy$item12 #boy
+coef(data2plmgdif)$girl$item12 #girl
+```
+## -comment on the item properties(item difficulty, item discrimination,item information that exhibited DIF, and on the differences between boys and girls)
+-The ICC clearly shows potential item bias and it is an uniform DIF within the range from -3 to 2. The item discrimination and diffculty parameters are not same for boys and girls. The item discrimination parameter for boys(1.95)is slightly higher than that of girls(1.92), meaning that this item12 discrimates slightly more between boys with similar ability than between girls. However, there is a huge difference between boys and girls regarding to the item difficulty paramter estimates. The item difficulty parameter for boys(-0.37) is much lower than that of girls(1.02), meaning that the item 12 is easier for boys.
+
+-item 12 contributes to precision(max scale is close to 1) when the ability is within the range from -3 to 3 for both boys and girls. and the information values conditional on ability values were 0 to 1. However, item 12 contributes best to more pricision for boys than girls when the ability is around 0.2.Conversley, item 12 has high precision of measurement for girls when the ability is around -0.2.
+
+## -item 16, plot item characteristic curves, item information functions
+
+```{r item 16, echo=FALSE, out.width = '55%'}
+#ICC item 16
+plot(seq(-4, 4, by = 0.01), probtrace(extract.item(extract.group(data2plmgdif, 1), 16), seq(-4, 4, by = 0.01))[,2], type = "l", main = "Item Characterstic Curve (Item 16)",xlab = "ability", ylab = "probability", ylim = c(0, 1), lwd = 2.5, col = "red")
+par(new = TRUE)
+plot(seq(-4, 4, by = 0.01), probtrace(extract.item(extract.group(data2plmgdif, 2), 16), seq(-4, 4, by = 0.01))[,2], type = "l", main = "Item Characterstic Curve (Item 16)",xlab = "ability", ylab = "probability", ylim = c(0, 1), lwd = 2.5, col = "blue")
+legend('topleft', c("boy","girl"),col=c("red","blue"),lwd=c(2.5,2.5))
+
+#Information item 16
+plot(seq(-4, 4, by = 0.01), iteminfo(extract.item(extract.group(data2plmgdif, 1), 16), seq(-4, 4, by = 0.01)), type = "l", main = "Item information (Item 16)",xlab = "ability", ylab = "information", ylim = c(0, round(ymax16)), lwd = 2.5, col = "red")
+par(new = TRUE)
+plot(seq(-4, 4, by = 0.01), iteminfo(extract.item(extract.group(data2plmgdif, 2), 16), seq(-4, 4, by = 0.01)), type = "l", main = "Item information (Item 16)",xlab = "ability", ylab = "information", ylim = c(0, round(ymax16)), lwd = 2.5, col = "blue")
+legend('topleft', c("boy","girl"),col=c("red","blue"),lwd=c(2.5,2.5))
+```
+
+
+```{r exact number item 16, echo=T}
+#coefficient item 16
+coef(data2plmgdif)$boy$item16 #boy
+coef(data2plmgdif)$girl$item16 #girl
+```
+## -comment on the item properties(item difficulty, item discrimination,item information that exhibited DIF, and on the differences between boys and girls)
+-The ICC clearly shows potential item bias and it is an Uniform DIF within the range from -3 to 1. The item discrimination and diffculty parameters are not same for boys and girls. The item discrimination parameter for boys(2.75)is slightly higher than that of girls(2.61), meaning that this item16 discrimates slightly more between boys with similar ability than between girls. However, there is a huge difference between boys and girls regarding to the item difficulty paramter estimates. the item difficulty parameter for boys(2.04) is much lower than that of girls(3.91), meaning that the item 16 favors boys.
+
+-item 16 contributes to precision(max scale is close to 2) when the ability is within the range from -4 to 1 for both boys and girls, and the information values conditional on ability values were 0 to 1.8. However, item 16 contributes best to more pricision for boys(1.8) than girls when the ability is around -0.5. Conversley, item 16 has high precision of measurement for girls(1.6) when the ability is around -1.5.
+
+
+
+
+# Task e.
+## -report the results(mean difference in English vocabulary proficiency between girls and boys, 95% confidence interval for the difference)
+```{r task e, echo=FALSE}
+coef(data2plmgdif)$boy$GroupPars
+coef(data2plmgdif)$girl$GroupPars
+```
+## -conclusion from the results
+Estimates of the mean difference was 0.26 in English vocabulary proficiency between girls and boys, and a 95% confidence interval for this mean difference based on our data was (0.15,0.37). In conclusion, 0.26 is a plausible value for the mean difference between boys and girls in English vocabulary proficiency as 0.26 is within a 95% confidience interval. 
+
+# Task f.
+## -based on the test information function, is it appropriate to use for the purpose of identifying low-performing students?
+
+```{r task f, echo=FALSE}
+#Test information function
+plot(seq(-4, 4, by = 0.01), testinfo(extract.group(data2plmgdif, 1), seq(-4, 4, by = 0.01)), type = "l", main = "test information", xlab = "ability", ylab = "test information", ylim = c(0, 14), lwd = 2.5, col = "red")
+par(new = TRUE)
+plot(seq(-4, 4, by = 0.01), testinfo(extract.group(data2plmgdif, 2), seq(-4, 4, by = 0.01)), type = "l", main = "test information", xlab = "ability", ylab = "test information", ylim = c(0, 14), lwd = 2.5, col = "blue")
+legend('topleft', c("boy","girl"),col=c("red","blue"),lwd=c(2.5,2.5))
+```
+
+Our TIF(test information function) contributes to the precision of measurement within the range from -2 to 2 for both boys and girls, and the information values conditional on ability were 0 to 13, and it works best when one's ability estimate is close to 0. In this regard, it is not appropriate to use this test for identifying low-performing students as the TIF is relatively low on below -2 ability level, meaning that the test is not well suited for measuring students who have low level of ability(below -2).
+
+## -any meaningful differences in terms of how the test boys and girls?
+There is little difference on how the test works between boys and girls. This English proficiency test contributes to more precision for girls than the boys when the ability estimate is in the range below -1. Conversly, this test contributes to more precision for boys than the girl when the ability estimate is in the range above -1. 
+
